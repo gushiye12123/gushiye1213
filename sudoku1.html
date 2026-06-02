@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数独游戏 - 联机 & AI对战</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+        }
+
+        .main-wrapper {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-start;
+            max-width: 1100px;
+            width: 100%;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 25px 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #302b63;
+            margin-bottom: 6px;
+            font-size: 1.8em;
+            letter-spacing: 2px;
+        }
+
+        /* ============ 模式选择 ============ */
+        .mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .mode-btn {
+            padding: 7px 16px;
+            border: 2px solid #7c3aed;
+            background: transparent;
+            color: #7c3aed;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .mode-btn:hover {
+            background: rgba(124, 58, 237, 0.1);
+        }
+        .mode-btn.active {
+            background: #7c3aed;
+            color: white;
+        }
+
+        /* ============ 联机面板 ============ */
+        .online-panel {
+            display: none;
+            background: #f5f3ff;
+            border: 2px solid #c4b5fd;
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .online-panel.visible {
+            display: block;
+        }
+        .online-panel .room-info {
+            font-size: 13px;
+            color: #5b21b6;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .online-panel input {
+            padding: 6px 12px;
+            border: 2px solid #c4b5fd;
+            border-radius: 20px;
+            font-size: 14px;
+            text-align: center;
+            width: 120px;
+            outline: none;
+        }
+        .online-panel input:focus {
+            border-color: #7c3aed;
+        }
+        .online-panel .small-btn {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 4px;
+        }
+        .small-btn-create {
+            background: #7c3aed;
+            color: white;
+        }
+        .small-btn-join {
+            background: #059669;
+            color: white;
+        }
+        .small-btn-leave {
+            background: #ef4444;
+            color: white;
+        }
+
+        .difficulty-selector {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .diff-btn {
+            padding: 8px 20px;
+            border: 2px solid #302b63;
+            background: transparent;
+            color: #302b63;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .diff-btn:hover {
+            background: rgba(48, 43, 99, 0.1);
+        }
+
+        .diff-btn.active {
+            background: #302b63;
+            color: white;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 1px;
+            background: #302b63;
+            border: 3px solid #302b63;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 0 auto;
+            max-width: 430px;
+            aspect-ratio: 1;
+        }
+
+        .cell {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: 700;
+            cursor: pointer;
+            background: white;
+            transition: background 0.2s;
+            user-select: none;
+            position: relative;
+        }
+
+        .cell:hover {
+            background: #e8e6f5;
+        }
+
+        .cell.selected {
+            background: #c4b5fd;
+            box-shadow: inset 0 0 0 3px #7c3aed;
+        }
+
+        .cell.same-number {
+            background: #ddd6fe;
+        }
+
+        .cell.same-row-col {
+            background: #f3f0ff;
+        }
+
+        .cell.given {
+            color: #1e1b4b;
+        }
+
+        .cell.user-input {
+            color: #7c3aed;
+        }
+
+        .cell.error {
+            color: #dc2626;
+            background: #fee2e2 !important;
+        }
+
+        .cell.hint {
+            color: #059669;
+            font-weight: 700;
+        }
+
+        /* 对手填入 */
+        .cell.opponent {
+            color: #f59e0b;
+            font-weight: 700;
+        }
+
+        .cell.opponent::after {
+            content: '';
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 6px;
+            height: 6px;
+            background: #f59e0b;
+            border-radius: 50%;
+        }
+
+        /* 3x3 宫格加粗边框 */
+        .cell:nth-child(3n) {
+            border-right: 2px solid #302b63;
+        }
+        .cell:nth-child(9n) {
+            border-right: none;
+        }
+        .cell:nth-child(n+19):nth-child(-n+27),
+        .cell:nth-child(n+46):nth-child(-n+54) {
+            border-bottom: 2px solid #302b63;
+        }
+
+        .number-pad {
+            display: flex;
+            justify-content: center;
+            gap: 7px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .num-btn {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #302b63;
+            background: white;
+            color: #302b63;
+            border-radius: 50%;
+            font-size: 19px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .num-btn:hover {
+            background: #302b63;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .num-btn:active {
+            transform: scale(0.95);
+        }
+
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 9px 20px;
+            border: none;
+            border-radius: 25px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            letter-spacing: 1px;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-erase {
+            background: #ef4444;
+            color: white;
+        }
+        .btn-hint {
+            background: #f59e0b;
+            color: white;
+        }
+        .btn-new {
+            background: #302b63;
+            color: white;
+        }
+        .btn-check {
+            background: #059669;
+            color: white;
+        }
+
+        .timer {
+            text-align: center;
+            font-size: 18px;
+            color: #6b7280;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        .message {
+            text-align: center;
+            min-height: 24px;
+            font-size: 15px;
+            font-weight: 600;
+            margin-top: 8px;
+            transition: all 0.3s;
+        }
+
+        .message.success {
+            color: #059669;
+        }
+        .message.info {
+            color: #6366f1;
+        }
+        .message.error-msg {
+            color: #dc2626;
+        }
+
+        /* ============ 对战信息栏 ============ */
+        .battle-info {
+            display: none;
+            justify-content: space-around;
+            align-items: center;
+            margin-bottom: 14px;
+            padding: 10px 15px;
+            background: #f5f3ff;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .battle-info.visible {
+            display: flex;
+        }
+        .battle-info .player {
+            text-align: center;
+        }
+        .battle-info .player-name {
+            font-size: 13px;
+            color: #6b7280;
+        }
+        .battle-info .player-score {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .battle-info .player-score.you {
+            color: #7c3aed;
+        }
+        .battle-info .player-score.opp {
+            color: #f59e0b;
+        }
+        .battle-info .vs {
+            font-size: 22px;
+            color: #9ca3af;
+            font-weight: 900;
+        }
+
+        .music-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.9);
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .music-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .music-toggle.muted {
+            opacity: 0.6;
+        }
+
+        @media (max-width: 1100px) {
+            .main-wrapper {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 15px;
+            }
+            .cell {
+                font-size: 15px;
+            }
+            .num-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="music-toggle" id="musicToggle" title="背景音乐">🎵</button>
+
+    <div class="main-wrapper" id="mainWrapper">
+        <!-- 玩家1面板 -->
+        <div class="container" id="player1Container">
+            <h1>🧩 数独</h1>
+
+            <div class="mode-selector">
+                <button class="mode-btn active" data-mode="solo">单人模式</button>
+                <button class="mode-btn" data-mode="ai">🤖 AI对战</button>
+                <button class="mode-btn" data-mode="online">🌐 联机对战</button>
+            </div>
+
+            <div class="online-panel" id="onlinePanel">
+                <div class="room-info" id="roomInfo">创建房间或加入已有房间</div>
+                <div>
+                    <input type="text" id="roomInput" placeholder="房间号" maxlength="6">
+                </div>
+                <div style="margin-top:6px;">
+                    <button class="small-btn small-btn-create" id="btnCreate">创建房间</button>
+                    <button class="small-btn small-btn-join" id="btnJoin">加入房间</button>
+                    <button class="small-btn small-btn-leave" id="btnLeave" style="display:none;">离开房间</button>
+                </div>
+            </div>
+
+            <div class="battle-info" id="battleInfo1">
+                <div class="player">
+                    <div class="player-name">👤 你</div>
+                    <div class="player-score you" id="scoreYou">0</div>
+                </div>
+                <div class="vs">VS</div>
+                <div class="player">
+                    <div class="player-name" id="oppName">🤖 AI</div>
+                    <div class="player-score opp" id="scoreOpp">0</div>
+                </div>
+            </div>
+
+            <div class="difficulty-selector" id="diffSelector">
+                <button class="diff-btn active" data-diff="easy">简单</button>
+                <button class="diff-btn" data-diff="medium">中等</button>
+                <button class="diff-btn" data-diff="hard">困难</button>
+                <button class="diff-btn" data-diff="expert">专家</button>
+            </div>
+
+            <div class="timer" id="timer1">⏱ 00:00</div>
+
+            <div class="board" id="board1"></div>
+
+            <div class="number-pad" id="numberPad1"></div>
+
+            <div class="action-buttons">
+                <button class="action-btn btn-erase" id="btnErase1">🗑 擦除</button>
+                <button class="action-btn btn-hint" id="btnHint1">💡 提示</button>
+                <button class="action-btn btn-check" id="btnCheck1">✅ 检查</button>
+                <button class="action-btn btn-new" id="btnNew1">🔄 新游戏</button>
+            </div>
+
+            <div class="message" id="message1"></div>
+        </div>
+
+        <!-- 玩家2面板（联机/对战模式显示） -->
+        <div class="container" id="player2Container" style="display:none;">
+            <h1 id="p2Title">🤖 AI</h1>
+            <div class="timer" id="timer2">⏱ 00:00</div>
+            <div class="board" id="board2"></div>
+            <div class="message" id="message2"></div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            // ==================== 常量 ====================
+            const SIZE = 9;
+
+            // ==================== 全局状态 ====================
+            let gameMode = 'solo'; // 'solo' | 'ai' | 'online'
+            let difficulty = 'easy';
+
+            // ==================== 背景音乐 ====================
+            let audioCtx = null;
+            let musicPlaying = false;
+            let musicGainNode = null;
+            let musicOscillators = [];
+            let musicTimeoutIds = [];
+
+            function initAudio() {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    musicGainNode = audioCtx.createGain();
+                    musicGainNode.gain.value = 0.06;
+                    musicGainNode.connect(audioCtx.destination);
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            }
+
+            const melodyNotes = [
+                { freq: 261.63, dur: 0.6 }, { freq: 293.66, dur: 0.4 },
+                { freq: 329.63, dur: 0.6 }, { freq: 392.00, dur: 0.8 },
+                { freq: 329.63, dur: 0.4 }, { freq: 293.66, dur: 0.5 },
+                { freq: 261.63, dur: 0.7 }, { freq: 220.00, dur: 0.5 },
+                { freq: 246.94, dur: 0.5 }, { freq: 261.63, dur: 0.8 },
+                { freq: 329.63, dur: 0.6 }, { freq: 349.23, dur: 0.5 },
+                { freq: 392.00, dur: 0.7 }, { freq: 349.23, dur: 0.4 },
+                { freq: 329.63, dur: 0.6 }, { freq: 293.66, dur: 0.5 },
+                { freq: 261.63, dur: 0.8 }, { freq: 293.66, dur: 0.5 },
+                { freq: 261.63, dur: 0.6 }, { freq: 220.00, dur: 1.0 },
+            ];
+
+            function playNote(freq, startTime, duration) {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+                osc.connect(gain);
+                gain.connect(musicGainNode);
+                osc.start(startTime);
+                osc.stop(startTime + duration);
+                musicOscillators.push(osc);
+            }
+
+            function playMelodyLoop() {
+                if (!musicPlaying || !audioCtx) return;
+                let currentTime = audioCtx.currentTime;
+                for (let i = 0; i < melodyNotes.length; i++) {
+                    const { freq, dur } = melodyNotes[i];
+                    playNote(freq, currentTime, dur);
+                    currentTime += dur + 0.05;
+                }
+                const loopDuration = melodyNotes.reduce((sum, n) => sum + n.dur + 0.05, 0);
+                const tid = setTimeout(() => playMelodyLoop(), (loopDuration - 0.2) * 1000);
+                musicTimeoutIds.push(tid);
+            }
+
+            function startMusic() {
+                initAudio();
+                musicPlaying = true;
+                musicOscillators = [];
+                musicTimeoutIds = [];
+                playMelodyLoop();
+                document.getElementById('musicToggle').textContent = '🎵';
+                document.getElementById('musicToggle').classList.remove('muted');
+            }
+
+            function stopMusic() {
+                musicPlaying = false;
+                musicOscillators.forEach(osc => { try { osc.stop(); } catch (e) { } });
+                musicOscillators = [];
+                musicTimeoutIds.forEach(tid => clearTimeout(tid));
+                musicTimeoutIds = [];
+                document.getElementById('musicToggle').textContent = '🔇';
+                document.getElementById('musicToggle').classList.add('muted');
+            }
+
+            function toggleMusic() {
+                if (musicPlaying) { stopMusic(); } else { startMusic(); }
+            }
+
+            document.getElementById('musicToggle').addEventListener('click', toggleMusic);
+
+            let musicAutoStarted = false;
+            function autoStartMusic() {
+                if (!musicAutoStarted) {
+                    musicAutoStarted = true;
+                    startMusic();
+                    document.removeEventListener('click', autoStartMusic);
+                    document.removeEventListener('keydown', autoStartMusic);
+                }
+            }
+            document.addEventListener('click', autoStartMusic);
+            document.addEventListener('keydown', autoStartMusic);
+
+            // ==================== 工具函数 ====================
+            function shuffle(arr) {
+                const a = [...arr];
+                for (let i = a.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [a[i], a[j]] = [a[j], a[i]];
+                }
+                return a;
+            }
+
+            function deepCopy(arr) {
+                return arr.map(row => [...row]);
+            }
+
+            function isValid(boardArr, row, col, num) {
+                for (let i = 0; i < SIZE; i++) {
+                    if (boardArr[row][i] === num) return false;
+                    if (boardArr[i][col] === num) return false;
+                }
+                const boxRow = Math.floor(row / 3) * 3;
+                const boxCol = Math.floor(col / 3) * 3;
+                for (let r = boxRow; r < boxRow + 3; r++) {
+                    for (let c = boxCol; c < boxCol + 3; c++) {
+                        if (boardArr[r][c] === num) return false;
+                    }
+                }
+                return true;
+            }
+
+            function solve(boardArr) {
+                for (let r = 0; r < SIZE; r++) {
+                    for (let c = 0; c < SIZE; c++) {
+                        if (boardArr[r][c] === 0) {
+                            const nums = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+                            for (const num of nums) {
+                                if (isValid(boardArr, r, c, num)) {
+                                    boardArr[r][c] = num;
+                                    if (solve(boardArr)) return true;
+                                    boardArr[r][c] = 0;
+                                }
+                            }
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            function generateFullBoard() {
+                const b = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+                const firstRow = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+                b[0] = firstRow;
+                solve(b);
+                return b;
+            }
+
+            function getEmptyCount(diff) {
+                switch (diff) {
+                    case 'easy': return 36;
+                    case 'medium': return 46;
+                    case 'hard': return 52;
+                    case 'expert': return 58;
+                    default: return 36;
+                }
+            }
+
+            function createPuzzle(fullBoard, diff) {
+                const puzzle = deepCopy(fullBoard);
+                const mask = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+                const targetEmpty = getEmptyCount(diff);
+                const positions = [];
+                for (let r = 0; r < SIZE; r++)
+                    for (let c = 0; c < SIZE; c++)
+                        positions.push([r, c]);
+                for (let i = positions.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [positions[i], positions[j]] = [positions[j], positions[i]];
+                }
+                let removed = 0;
+                for (const [r, c] of positions) {
+                    if (removed >= targetEmpty) break;
+                    puzzle[r][c] = 0;
+                    removed++;
+                }
+                for (let r = 0; r < SIZE; r++)
+                    for (let c = 0; c < SIZE; c++)
+                        mask[r][c] = puzzle[r][c] !== 0;
+                return { puzzle, mask };
+            }
+
+            // ==================== 玩家类 ====================
+            class Player {
+                constructor(containerId, boardId, numberPadId, timerId, messageId, btnEraseId, btnHintId, btnCheckId, btnNewId) {
+                    this.containerId = containerId;
+                    this.boardId = boardId;
+                    this.numberPadId = numberPadId;
+                    this.timerId = timerId;
+                    this.messageId = messageId;
+
+                    this.board = [];
+                    this.solution = [];
+                    this.givenMask = [];
+                    this.hintMask = [];
+                    this.opponentMask = []; // 对手填入的格子
+                    this.selectedRow = -1;
+                    this.selectedCol = -1;
+                    this.seconds = 0;
+                    this.timerInterval = null;
+                    this.completed = false;
+                    this.score = 0;
+
+                    this.boardEl = document.getElementById(boardId);
+                    this.numberPadEl = document.getElementById(numberPadId);
+                    this.timerEl = document.getElementById(timerId);
+                    this.messageEl = document.getElementById(messageId);
+
+                    this._bindButtons(btnEraseId, btnHintId, btnCheckId, btnNewId);
+                }
+
+                _bindButtons(btnEraseId, btnHintId, btnCheckId, btnNewId) {
+                    if (btnEraseId) document.getElementById(btnEraseId).addEventListener('click', () => this.eraseCell());
+                    if (btnHintId) document.getElementById(btnHintId).addEventListener('click', () => this.giveHint());
+                    if (btnCheckId) document.getElementById(btnCheckId).addEventListener('click', () => this.checkSolution());
+                    if (btnNewId) document.getElementById(btnNewId).addEventListener('click', () => {
+                        if (gameMode === 'solo' || this === player1) {
+                            resetGame();
+                        }
+                    });
+                }
+
+                loadPuzzle(fullBoard, diff) {
+                    this.solution = fullBoard;
+                    const { puzzle, mask } = createPuzzle(fullBoard, diff);
+                    this.board = puzzle;
+                    this.givenMask = mask;
+                    this.hintMask = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+                    this.opponentMask = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+                    this.selectedRow = -1;
+                    this.selectedCol = -1;
+                    this.completed = false;
+                }
+
+                resetTimer() {
+                    this.stopTimer();
+                    this.seconds = 0;
+                    this.updateTimer();
+                }
+
+                startTimer() {
+                    this.stopTimer();
+                    this.timerInterval = setInterval(() => {
+                        this.seconds++;
+                        this.updateTimer();
+                    }, 1000);
+                }
+
+                stopTimer() {
+                    if (this.timerInterval) {
+                        clearInterval(this.timerInterval);
+                        this.timerInterval = null;
+                    }
+                }
+
+                updateTimer() {
+                    const m = Math.floor(this.seconds / 60).toString().padStart(2, '0');
+                    const s = (this.seconds % 60).toString().padStart(2, '0');
+                    this.timerEl.textContent = `⏱ ${m}:${s}`;
+                }
+
+                formatTime() {
+                    const m = Math.floor(this.seconds / 60).toString().padStart(2, '0');
+                    const s = (this.seconds % 60).toString().padStart(2, '0');
+                    return `${m}:${s}`;
+                }
+
+                renderBoard() {
+                    this.boardEl.innerHTML = '';
+                    for (let r = 0; r < SIZE; r++) {
+                        for (let c = 0; c < SIZE; c++) {
+                            const cell = document.createElement('div');
+                            cell.className = 'cell';
+                            cell.dataset.row = r;
+                            cell.dataset.col = c;
+
+                            if (this.board[r][c] !== 0) {
+                                cell.textContent = this.board[r][c];
+                                if (this.givenMask[r][c]) {
+                                    cell.classList.add('given');
+                                } else if (this.hintMask[r][c]) {
+                                    cell.classList.add('hint');
+                                } else if (this.opponentMask[r][c]) {
+                                    cell.classList.add('opponent');
+                                } else {
+                                    cell.classList.add('user-input');
+                                }
+                            }
+
+                            if (r === this.selectedRow && c === this.selectedCol) {
+                                cell.classList.add('selected');
+                            } else if (this.selectedRow >= 0 && this.selectedCol >= 0) {
+                                if (r === this.selectedRow || c === this.selectedCol ||
+                                    (Math.floor(r / 3) === Math.floor(this.selectedRow / 3) &&
+                                        Math.floor(c / 3) === Math.floor(this.selectedCol / 3))) {
+                                    cell.classList.add('same-row-col');
+                                }
+                                if (this.board[r][c] !== 0 && this.board[r][c] === this.board[this.selectedRow][this.selectedCol] && this.board[this.selectedRow][this.selectedCol] !== 0) {
+                                    cell.classList.add('same-number');
+                                }
+                            }
+
+                            if (!this.givenMask[r][c] && !this.hintMask[r][c] && !this.opponentMask[r][c] && this.board[r][c] !== 0 && this.board[r][c] !== this.solution[r][c]) {
+                                cell.classList.add('error');
+                            }
+
+                            cell.addEventListener('click', () => this.selectCell(r, c));
+                            this.boardEl.appendChild(cell);
+                        }
+                    }
+                }
+
+                renderNumberPad() {
+                    if (!this.numberPadEl) return;
+                    this.numberPadEl.innerHTML = '';
+                    for (let n = 1; n <= 9; n++) {
+                        const btn = document.createElement('button');
+                        btn.className = 'num-btn';
+                        btn.textContent = n;
+                        btn.addEventListener('click', () => this.placeNumber(n));
+                        this.numberPadEl.appendChild(btn);
+                    }
+                }
+
+                selectCell(r, c) {
+                    this.selectedRow = r;
+                    this.selectedCol = c;
+                    this.renderBoard();
+                }
+
+                placeNumber(num, isOpponent = false) {
+                    if (this.selectedRow < 0 || this.selectedCol < 0 && !isOpponent) return;
+                    const r = isOpponent ? arguments[1] : this.selectedRow;
+                    const c = isOpponent ? arguments[2] : this.selectedCol;
+
+                    if (this.givenMask[r][c] || this.hintMask[r][c]) return;
+
+                    this.board[r][c] = num;
+                    this.hintMask[r][c] = false;
+
+                    if (isOpponent) {
+                        this.opponentMask[r][c] = true;
+                    }
+
+                    this.renderBoard();
+
+                    if (!isOpponent && this.checkComplete()) {
+                        this.stopTimer();
+                        this.completed = true;
+                        this.messageEl.textContent = `🎉 完成了！用时 ${this.formatTime()}`;
+                        this.messageEl.className = 'message success';
+                        onPlayerComplete(this);
+                    }
+                }
+
+                eraseCell() {
+                    if (this.selectedRow < 0 || this.selectedCol < 0) return;
+                    if (this.givenMask[this.selectedRow][this.selectedCol]) return;
+                    this.board[this.selectedRow][this.selectedCol] = 0;
+                    this.hintMask[this.selectedRow][this.selectedCol] = false;
+                    this.opponentMask[this.selectedRow][this.selectedCol] = false;
+                    this.renderBoard();
+                }
+
+                giveHint() {
+                    const candidates = [];
+                    for (let r = 0; r < SIZE; r++) {
+                        for (let c = 0; c < SIZE; c++) {
+                            if (!this.givenMask[r][c] && this.board[r][c] !== this.solution[r][c]) {
+                                candidates.push([r, c]);
+                            }
+                        }
+                    }
+                    if (candidates.length === 0) return;
+                    const [r, c] = candidates[Math.floor(Math.random() * candidates.length)];
+                    this.board[r][c] = this.solution[r][c];
+                    this.hintMask[r][c] = true;
+                    this.opponentMask[r][c] = false;
+                    this.selectedRow = r;
+                    this.selectedCol = c;
+                    this.renderBoard();
+                    if (this.checkComplete()) {
+                        this.stopTimer();
+                        this.completed = true;
+                        this.messageEl.textContent = `🎉 完成了！用时 ${this.formatTime()}`;
+                        this.messageEl.className = 'message success';
+                        onPlayerComplete(this);
+                    }
+                }
+
+                checkSolution() {
+                    let hasError = false;
+                    for (let r = 0; r < SIZE; r++) {
+                        for (let c = 0; c < SIZE; c++) {
+                            if (this.board[r][c] !== 0 && this.board[r][c] !== this.solution[r][c]) {
+                                hasError = true;
+                            }
+                        }
+                    }
+                    if (hasError) {
+                        this.messageEl.textContent = '❌ 存在错误，请检查红色标记';
+                        this.messageEl.className = 'message error-msg';
+                    } else {
+                        const filled = this.board.flat().filter(v => v !== 0).length;
+                        this.messageEl.textContent = `✅ ${filled} 个数字全部正确！`;
+                        this.messageEl.className = 'message success';
+                    }
+                    this.renderBoard();
+                }
+
+                checkComplete() {
+                    for (let r = 0; r < SIZE; r++)
+                        for (let c = 0; c < SIZE; c++)
+                            if (this.board[r][c] !== this.solution[r][c]) return false;
+                    return true;
+                }
+
+                getFilledCount() {
+                    let count = 0;
+                    for (let r = 0; r < SIZE; r++)
+                        for (let c = 0; c < SIZE; c++)
+                            if (!this.givenMask[r][c] && this.board[r][c] !== 0) count++;
+                    return count;
+                }
+            }
+
+            // ==================== 创建两个玩家实例 ====================
+            const player1 = new Player(
+                'player1Container', 'board1', 'numberPad1', 'timer1', 'message1',
+                'btnErase1', 'btnHint1', 'btnCheck1', 'btnNew1'
+            );
+            const player2 = new Player(
+                'player2Container', 'board2', null, 'timer2', 'message2',
+                null, null, null, null
+            );
+
+            // ==================== AI 对战逻辑 ====================
+            let aiInterval = null;
+            let aiActive = false;
+
+            function aiMakeMove() {
+                if (!aiActive || player2.completed) return;
+
+                // AI 找所有可填空格
+                const candidates = [];
+                for (let r = 0; r < SIZE; r++) {
+                    for (let c = 0; c < SIZE; c++) {
+                        if (!player2.givenMask[r][c] && player2.board[r][c] !== player2.solution[r][c]) {
+                            candidates.push([r, c]);
+                        }
+                    }
+                }
+
+                if (candidates.length === 0) {
+                    // 检查是否完成
+                    if (player2.checkComplete()) {
+                        player2.stopTimer();
+                        player2.completed = true;
+                        player2.messageEl.textContent = `🤖 AI完成了！用时 ${player2.formatTime()}`;
+                        player2.messageEl.className = 'message info';
+                        onPlayerComplete(player2);
+                    }
+                    return;
+                }
+
+                // AI 选择：80%概率填正确，20%概率填随机数字（模拟不同难度）
+                const [r, c] = candidates[Math.floor(Math.random() * candidates.length)];
+
+                // 根据难度决定正确率
+                let correctRate;
+                switch (difficulty) {
+                    case 'easy': correctRate = 0.65; break;
+                    case 'medium': correctRate = 0.75; break;
+                    case 'hard': correctRate = 0.85; break;
+                    case 'expert': correctRate = 0.92; break;
+                    default: correctRate = 0.75;
+                }
+
+                if (Math.random() < correctRate) {
+                    // 填正确
+                    player2.board[r][c] = player2.solution[r][c];
+                } else {
+                    // 填随机错误数字
+                    const wrongNums = [];
+                    for (let n = 1; n <= 9; n++) {
+                        if (n !== player2.solution[r][c]) wrongNums.push(n);
+                    }
+                    player2.board[r][c] = wrongNums[Math.floor(Math.random() * wrongNums.length)];
+                }
+
+                player2.opponentMask[r][c] = true;
+                player2.selectedRow = r;
+                player2.selectedCol = c;
+                player2.renderBoard();
+
+                // 检查是否完成
+                if (player2.checkComplete()) {
+                    player2.stopTimer();
+                    player2.completed = true;
+                    player2.messageEl.textContent = `🤖 AI完成了！用时 ${player2.formatTime()}`;
+                    player2.messageEl.className = 'message info';
+                    onPlayerComplete(player2);
+                }
+            }
+
+            function startAI() {
+                aiActive = true;
+                player2.resetTimer();
+                player2.startTimer();
+
+                // 随机间隔：0.8-2.5秒填一个
+                function scheduleNext() {
+                    if (!aiActive || player2.completed) return;
+                    const delay = 800 + Math.random() * 1700;
+                    aiInterval = setTimeout(() => {
+                        aiMakeMove();
+                        scheduleNext();
+                    }, delay);
+                }
+                scheduleNext();
+            }
+
+            function stopAI() {
+                aiActive = false;
+                if (aiInterval) {
+                    clearTimeout(aiInterval);
+                    aiInterval = null;
+                }
+            }
+
+            // ==================== 联机逻辑（localStorage模拟） ====================
+            let onlineRoomId = null;
+            let onlineIsHost = false;
+            let onlinePollInterval = null;
+
+            function onlineCreateRoom() {
+                const roomId = document.getElementById('roomInput').value.trim();
+                if (!roomId) {
+                    alert('请输入房间号');
+                    return;
+                }
+                // 检查房间是否已存在
+                if (localStorage.getItem(`sudoku_room_${roomId}`)) {
+                    alert('该房间已存在，请换一个房间号');
+                    return;
+                }
+
+                onlineRoomId = roomId;
+                onlineIsHost = true;
+
+                const roomData = {
+                    host: true,
+                    difficulty: difficulty,
+                    fullBoard: generateFullBoard(),
+                    createdAt: Date.now(),
+                    hostBoard: null,
+                    guestBoard: null,
+                    hostScore: 0,
+                    guestScore: 0,
+                    hostCompleted: false,
+                    guestCompleted: false,
+                    gameStarted: false,
+                };
+                localStorage.setItem(`sudoku_room_${roomId}`, JSON.stringify(roomData));
+
+                document.getElementById('roomInfo').textContent = `🏠 房间: ${roomId} (等待对手加入...)`;
+                document.getElementById('btnCreate').style.display = 'none';
+                document.getElementById('btnJoin').style.display = 'none';
+                document.getElementById('btnLeave').style.display = 'inline-block';
+                document.getElementById('roomInput').disabled = true;
+
+                // 初始化自己的棋盘
+                resetGameForOnline(roomData.fullBoard);
+
+                startOnlinePoll();
+            }
+
+            function onlineJoinRoom() {
+                const roomId = document.getElementById('roomInput').value.trim();
+                if (!roomId) {
+                    alert('请输入房间号');
+                    return;
+                }
+                const raw = localStorage.getItem(`sudoku_room_${roomId}`);
+                if (!raw) {
+                    alert('房间不存在');
+                    return;
+                }
+                let roomData;
+                try { roomData = JSON.parse(raw); } catch (e) { alert('房间数据异常'); return; }
+
+                onlineRoomId = roomId;
+                onlineIsHost = false;
+
+                roomData.guestJoined = true;
+                roomData.gameStarted = true;
+                localStorage.setItem(`sudoku_room_${roomId}`, JSON.stringify(roomData));
+
+                document.getElementById('roomInfo').textContent = `🔗 已加入房间: ${roomId}`;
+                document.getElementById('btnCreate').style.display = 'none';
+                document.getElementById('btnJoin').style.display = 'none';
+                document.getElementById('btnLeave').style.display = 'inline-block';
+                document.getElementById('roomInput').disabled = true;
+
+                resetGameForOnline(roomData.fullBoard);
+
+                // 通知房主游戏开始
+                startOnlinePoll();
+            }
+
+            function onlineLeaveRoom() {
+                if (onlineRoomId) {
+                    if (onlineIsHost) {
+                        localStorage.removeItem(`sudoku_room_${onlineRoomId}`);
+                    } else {
+                        const raw = localStorage.getItem(`sudoku_room_${onlineRoomId}`);
+                        if (raw) {
+                            const roomData = JSON.parse(raw);
+                            roomData.guestLeft = true;
+                            localStorage.setItem(`sudoku_room_${onlineRoomId}`, JSON.stringify(roomData));
+                        }
+                    }
+                }
+                onlineRoomId = null;
+                onlineIsHost = false;
+                stopOnlinePoll();
+
+                document.getElementById('roomInfo').textContent = '创建房间或加入已有房间';
+                document.getElementById('btnCreate').style.display = 'inline-block';
+                document.getElementById('btnJoin').style.display = 'inline-block';
+                document.getElementById('btnLeave').style.display = 'none';
+                document.getElementById('roomInput').disabled = false;
+
+                switchToSoloMode();
+            }
+
+            function startOnlinePoll() {
+                stopOnlinePoll();
+                onlinePollInterval = setInterval(() => {
+                    if (!onlineRoomId) return;
+                    const raw = localStorage.getItem(`sudoku_room_${onlineRoomId}`);
+                    if (!raw) {
+                        document.getElementById('roomInfo').textContent = '⚠ 房间已关闭';
+                        onlineLeaveRoom();
+                        return;
+                    }
+                    let roomData;
+                    try { roomData = JSON.parse(raw); } catch (e) { return; }
+
+                    if (onlineIsHost) {
+                        // 房主：更新自己的棋盘到房间
+                        roomData.hostBoard = player1.board;
+                        roomData.hostScore = player1.getFilledCount();
+                        roomData.hostCompleted = player1.completed;
+                        // 读取客人的棋盘
+                        if (roomData.guestBoard) {
+                            syncOpponentBoard(player2, roomData.guestBoard);
+                        }
+                        player2.score = roomData.guestScore || 0;
+                        document.getElementById('scoreOpp').textContent = player2.score;
+
+                        if (roomData.guestCompleted && !roomData.hostCompleted) {
+                            player1.messageEl.textContent = '⚠ 对手已完成！';
+                            player1.messageEl.className = 'message error-msg';
+                        }
+                    } else {
+                        // 客人：更新自己的棋盘到房间
+                        roomData.guestBoard = player1.board;
+                        roomData.guestScore = player1.getFilledCount();
+                        roomData.guestCompleted = player1.completed;
+                        // 读取房主棋盘
+                        if (roomData.hostBoard) {
+                            syncOpponentBoard(player2, roomData.hostBoard);
+                        }
+                        player2.score = roomData.hostScore || 0;
+                        document.getElementById('scoreOpp').textContent = player2.score;
+
+                        if (roomData.hostCompleted && !roomData.guestCompleted) {
+                            player1.messageEl.textContent = '⚠ 对手已完成！';
+                            player1.messageEl.className = 'message error-msg';
+                        }
+                    }
+
+                    localStorage.setItem(`sudoku_room_${onlineRoomId}`, JSON.stringify(roomData));
+                }, 500);
+            }
+
+            function stopOnlinePoll() {
+                if (onlinePollInterval) {
+                    clearInterval(onlinePollInterval);
+                    onlinePollInterval = null;
+                }
+            }
+
+            function syncOpponentBoard(targetPlayer, sourceBoard) {
+                for (let r = 0; r < SIZE; r++) {
+                    for (let c = 0; c < SIZE; c++) {
+                        if (!targetPlayer.givenMask[r][c] && sourceBoard[r][c] !== 0 && targetPlayer.board[r][c] !== sourceBoard[r][c]) {
+                            targetPlayer.board[r][c] = sourceBoard[r][c];
+                            targetPlayer.opponentMask[r][c] = true;
+                        }
+                    }
+                }
+                targetPlayer.renderBoard();
+            }
+
+            function resetGameForOnline(fullBoard) {
+                player1.loadPuzzle(fullBoard, difficulty);
+                player2.loadPuzzle(fullBoard, difficulty);
+                player1.resetTimer();
+                player2.resetTimer();
+                player1.startTimer();
+                player2.startTimer();
+                player1.score = 0;
+                player2.score = 0;
+                document.getElementById('scoreYou').textContent = '0';
+                document.getElementById('scoreOpp').textContent = '0';
+                player1.messageEl.textContent = '';
+                player1.messageEl.className = 'message';
+                player2.messageEl.textContent = '';
+                player2.messageEl.className = 'message';
+                player1.renderBoard();
+                player1.renderNumberPad();
+                player2.renderBoard();
+            }
+
+            // ==================== 完成回调 ====================
+            function onPlayerComplete(player) {
+                if (gameMode === 'ai') {
+                    stopAI();
+                    if (player === player1) {
+                        player1.score += 100;
+                        document.getElementById('scoreYou').textContent = player1.score;
+                        player1.messageEl.textContent = `🎉 你赢了！用时 ${player1.formatTime()}`;
+                        player1.messageEl.className = 'message success';
+                        player2.messageEl.textContent = '😢 AI输了...';
+                        player2.messageEl.className = 'message error-msg';
+                    } else {
+                        player2.score += 100;
+                        document.getElementById('scoreOpp').textContent = player2.score;
+                        player2.messageEl.textContent = `🤖 AI赢了！用时 ${player2.formatTime()}`;
+                        player2.messageEl.className = 'message info';
+                        player1.messageEl.textContent = '😢 你输了...';
+                        player1.messageEl.className = 'message error-msg';
+                    }
+                } else if (gameMode === 'online') {
+                    const me = (player === player1) ? '你' : '对手';
+                    const opp = (player === player1) ? '对手' : '你';
+                    player.messageEl.textContent = `🎉 ${me}完成了！`;
+                    player.messageEl.className = 'message success';
+                }
+            }
+
+            // ==================== 模式切换 ====================
+            function switchToSoloMode() {
+                gameMode = 'solo';
+                stopAI();
+                stopOnlinePoll();
+
+                document.getElementById('player2Container').style.display = 'none';
+                document.getElementById('battleInfo1').classList.remove('visible');
+                document.getElementById('onlinePanel').classList.remove('visible');
+                document.getElementById('diffSelector').style.display = '';
+
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                document.querySelector('[data-mode="solo"]').classList.add('active');
+
+                resetGame();
+            }
+
+            function switchToAIMode() {
+                gameMode = 'ai';
+                stopAI();
+                stopOnlinePoll();
+                if (onlineRoomId) onlineLeaveRoom();
+
+                document.getElementById('player2Container').style.display = 'block';
+                document.getElementById('battleInfo1').classList.add('visible');
+                document.getElementById('onlinePanel').classList.remove('visible');
+                document.getElementById('diffSelector').style.display = '';
+                document.getElementById('p2Title').textContent = '🤖 AI';
+                document.getElementById('oppName').textContent = '🤖 AI';
+
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                document.querySelector('[data-mode="ai"]').classList.add('active');
+
+                resetGame();
+            }
+
+            function switchToOnlineMode() {
+                gameMode = 'online';
+                stopAI();
+
+                document.getElementById('player2Container').style.display = 'block';
+                document.getElementById('battleInfo1').classList.add('visible');
+                document.getElementById('onlinePanel').classList.add('visible');
+                document.getElementById('diffSelector').style.display = '';
+                document.getElementById('p2Title').textContent = '👤 对手';
+                document.getElementById('oppName').textContent = '👤 对手';
+
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                document.querySelector('[data-mode="online"]').classList.add('active');
+
+                // 暂不开始游戏，等房间建立
+                player1.board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+                player1.solution = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+                player1.givenMask = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+                player1.hintMask = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+                player1.opponentMask = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+                player1.stopTimer();
+                player1.seconds = 0;
+                player1.updateTimer();
+                player1.score = 0;
+                player1.completed = false;
+                player1.messageEl.textContent = '等待连接...';
+                player1.messageEl.className = 'message info';
+
+                player2.board = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+                player2.solution = Array.from({ length: SIZE }, () => Array(SIZE).fill(0));
+                player2.givenMask = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+                player2.hintMask = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+                player2.opponentMask = Array.from({ length: SIZE }, () => Array(SIZE).fill(false));
+                player2.stopTimer();
+                player2.seconds = 0;
+                player2.updateTimer();
+                player2.score = 0;
+                player2.completed = false;
+                player2.messageEl.textContent = '';
+                player2.messageEl.className = 'message';
+
+                document.getElementById('scoreYou').textContent = '0';
+                document.getElementById('scoreOpp').textContent = '0';
+
+                player1.renderBoard();
+                player1.renderNumberPad();
+                player2.renderBoard();
+
+                document.getElementById('roomInput').disabled = false;
+                document.getElementById('btnCreate').style.display = 'inline-block';
+                document.getElementById('btnJoin').style.display = 'inline-block';
+                document.getElementById('btnLeave').style.display = 'none';
+                document.getElementById('roomInfo').textContent = '创建房间或加入已有房间';
+            }
+
+            function resetGame() {
+                const full = generateFullBoard();
+
+                player1.loadPuzzle(full, difficulty);
+                player1.resetTimer();
+                player1.startTimer();
+                player1.score = player1.score || 0;
+                player1.completed = false;
+                player1.messageEl.textContent = '';
+                player1.messageEl.className = 'message';
+                player1.renderBoard();
+                player1.renderNumberPad();
+                document.getElementById('scoreYou').textContent = player1.score;
+
+                if (gameMode === 'ai' || (gameMode === 'online' && onlineRoomId)) {
+                    player2.loadPuzzle(full, difficulty);
+                    player2.resetTimer();
+                    player2.completed = false;
+                    player2.messageEl.textContent = '';
+                    player2.messageEl.className = 'message';
+                    player2.renderBoard();
+                    document.getElementById('scoreOpp').textContent = player2.score;
+
+                    if (gameMode === 'ai') {
+                        player2.startTimer();
+                        startAI();
+                    } else if (gameMode === 'online') {
+                        player2.startTimer();
+                    }
+                }
+            }
+
+            // ==================== 键盘支持 ====================
+            document.addEventListener('keydown', (e) => {
+                const key = e.key;
+                const activePlayer = player1; // 始终操作 player1
+
+                if (key >= '1' && key <= '9') {
+                    activePlayer.placeNumber(parseInt(key));
+                } else if (key === 'Backspace' || key === 'Delete' || key === '0') {
+                    activePlayer.eraseCell();
+                } else if (key === 'ArrowUp' && activePlayer.selectedRow > 0) {
+                    activePlayer.selectCell(activePlayer.selectedRow - 1, activePlayer.selectedCol);
+                } else if (key === 'ArrowDown' && activePlayer.selectedRow < SIZE - 1) {
+                    activePlayer.selectCell(activePlayer.selectedRow + 1, activePlayer.selectedCol);
+                } else if (key === 'ArrowLeft' && activePlayer.selectedCol > 0) {
+                    activePlayer.selectCell(activePlayer.selectedRow, activePlayer.selectedCol - 1);
+                } else if (key === 'ArrowRight' && activePlayer.selectedCol < SIZE - 1) {
+                    activePlayer.selectCell(activePlayer.selectedRow, activePlayer.selectedCol + 1);
+                }
+            });
+
+            // ==================== 模式按钮事件 ====================
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const mode = this.dataset.mode;
+                    if (mode === 'solo') switchToSoloMode();
+                    else if (mode === 'ai') switchToAIMode();
+                    else if (mode === 'online') switchToOnlineMode();
+                });
+            });
+
+            // ==================== 难度按钮事件 ====================
+            document.querySelectorAll('.diff-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    difficulty = this.dataset.diff;
+                    resetGame();
+                });
+            });
+
+            // ==================== 联机按钮事件 ====================
+            document.getElementById('btnCreate').addEventListener('click', onlineCreateRoom);
+            document.getElementById('btnJoin').addEventListener('click', onlineJoinRoom);
+            document.getElementById('btnLeave').addEventListener('click', onlineLeaveRoom);
+
+            // ==================== 页面关闭清理 ====================
+            window.addEventListener('beforeunload', () => {
+                if (onlineRoomId && onlineIsHost) {
+                    localStorage.removeItem(`sudoku_room_${onlineRoomId}`);
+                }
+                stopAI();
+                stopOnlinePoll();
+                stopMusic();
+            });
+
+            // ==================== 启动 ====================
+            resetGame();
+        })();
+    </script>
+</body>
+</html>
